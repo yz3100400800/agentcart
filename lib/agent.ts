@@ -132,7 +132,7 @@ export async function runAgent(
   }
 
   return {
-    message: fallbackMessage(state, finalText),
+    message: withApprovalLink(fallbackMessage(state, finalText), state),
     trace: state.trace,
     cart: state.cart,
     policy: state.evaluation,
@@ -185,6 +185,12 @@ async function maybeCreateOrder(
   }
   if (result.evaluation) state.evaluation = result.evaluation;
   if (result.code === "POLICY") state.needsApproval = true;
+}
+
+export function withApprovalLink(message: string, state: Pick<AgentState, "paypalOrder" | "refund">): string {
+  const url = state.paypalOrder?.approveUrl;
+  if (!url || state.refund || message.includes(url)) return message;
+  return `${message}\n\n[Approve with PayPal](${url})`;
 }
 
 function fallbackMessage(state: AgentState, modelText: string | null): string {

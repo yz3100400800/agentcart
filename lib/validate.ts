@@ -1,5 +1,5 @@
 import { listCategories } from "@/lib/catalog";
-import { sanitizePolicy } from "@/lib/policy";
+import { DEFAULT_POLICY, sanitizePolicy } from "@/lib/policy";
 import type {
   CartRequestLine,
   HumanApproval,
@@ -24,7 +24,8 @@ export function parseAgentRequest(body: unknown): AgentRequest | { error: string
   const raw = body as Record<string, unknown>;
   const messages = parseMessages(raw.messages);
   if ("error" in messages) return messages;
-  const policy = sanitizePolicy(raw.policy, listCategories());
+  const policy =
+    raw.policy === undefined || raw.policy === null ? DEFAULT_POLICY : sanitizePolicy(raw.policy, listCategories());
   if ("error" in policy) return policy;
   const currentCart = parseLines(raw.currentCart, "currentCart");
   if ("error" in currentCart) return currentCart;

@@ -119,6 +119,24 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ## Testing for judges
 
+**Live demo:** https://agentcart-pi.vercel.app (PayPal **sandbox**, no real money).
+
+Quick path on the live site:
+
+1. Open https://agentcart-pi.vercel.app and keep the default policy.
+2. Send `Order coffee beans and cups for a 5-person team next week, budget $80`.
+3. Check the trace: catalog plan, policy pass, PayPal order id. The reply ends with an **Approve with PayPal** link.
+4. Pay with the PayPal button or link using the sandbox buyer account. Sandbox buyer credentials are provided in the Devpost "Testing instructions" field (`<SANDBOX_BUYER_EMAIL>` / `<SANDBOX_BUYER_PASSWORD>`).
+5. Open **Orders** to see the captured status, then try `Refund the cups, they arrived broken`.
+
+API smoke test (`policy` is optional and falls back to the default policy):
+
+```bash
+curl -s -X POST https://agentcart-pi.vercel.app/api/agent \
+  -H 'content-type: application/json' \
+  -d '{"messages":[{"role":"user","content":"Order coffee beans and cups for a 5-person team next week, budget $80"}]}'
+```
+
 Automated checks, with PayPal and the model mocked:
 
 ```bash
@@ -134,7 +152,7 @@ End-to-end sandbox checkout:
 4. Read the agent trace. It should show catalog planning, a policy pass, and a PayPal order id. The cart should be 5 Day Cups and 2 House Blend bags, $74.00, unless the model picks an equivalent explicit cart that still passes policy.
 5. Use the PayPal button and sign in with the sandbox **personal** account.
 
-Sandbox buyer login: to be filled later
+Sandbox buyer login: see the Devpost testing instructions field.
 
 6. After capture, open **Orders**. Status is read from PayPal. The trace stored in this browser is shown on the order page.
 7. To see human approval, set the per-item max to `$20` and send the same coffee request. Five cups are $45, so the agent must stop. Choose **Approve exception and create PayPal order**, then pay or abandon that second order.
