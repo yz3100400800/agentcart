@@ -189,12 +189,21 @@ async function maybeCreateOrder(
 
 export const APPROVE_HINT = "Click the PayPal button below (or the link) to approve.";
 
+const APPROVAL_TALK =
+  /(paypal (button|link|approval)|approve (it |the payment |the order )?(with|using|via|in) paypal|click the paypal|approv\w* (the )?payment)/i;
+
 export function cleanReply(message: string): string {
   return message
     .replace(/\[([^\]]+)\]\((https?:[^)]+)\)/g, "$1")
     .replace(/https?:\/\/\S*paypal\.com\S*/gi, "")
     .split("\n")
-    .filter((line) => !/(paypal (button|link|approval)|approve (it |the payment |the order )?(with|using|via|in) paypal|click the paypal)/i.test(line))
+    .map((line) =>
+      (line.match(/[^.!?]+[.!?]*\s*/g) ?? [line])
+        .filter((sentence) => !APPROVAL_TALK.test(sentence))
+        .join("")
+        .trim(),
+    )
+    .filter((line, index, all) => line !== "" || (index > 0 && all[index - 1] !== ""))
     .map((line) =>
       line
         .replace(/\*\*|__|`/g, "")
@@ -210,8 +219,10 @@ export function cleanReply(message: string): string {
 }
 
 export function withApprovalLink(message: string, state: Pick<AgentState, "paypalOrder" | "refund">): string {
-  const cleaned = cleanReply(message);
   const url = state.paypalOrder?.approveUrl;
+  const cleaned =
+    cleanReply(message) ||
+    (state.paypalOrder ? `PayPal order ${state.paypalOrder.id} is ${state.paypalOrder.status}.` : message.trim());
   if (!url || state.refund) return cleaned;
   return `${cleaned}\n\n${APPROVE_HINT}\nApprove with PayPal: ${url}`;
 }

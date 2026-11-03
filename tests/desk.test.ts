@@ -54,3 +54,22 @@ describe("cleanReply via withApprovalLink", () => {
     expect(out.endsWith(`Approve with PayPal: ${url}`)).toBe(true);
   });
 });
+
+describe("sentence-level cleanup", () => {
+  it("keeps the summary sentence and drops only the approval sentence", () => {
+    const url = "https://www.sandbox.paypal.com/checkoutnow?token=T1";
+    const out = withApprovalLink(
+      "Your order is ready: 2 bags of House Blend Beans and 5 Day Cups for $74.00. The PayPal button has appeared so you can approve the payment.",
+      { paypalOrder: { id: "T1", status: "CREATED", approveUrl: url }, refund: null },
+    );
+    expect(out.startsWith("Your order is ready: 2 bags of House Blend Beans and 5 Day Cups for $74.00.")).toBe(true);
+    expect(out).not.toContain("has appeared");
+  });
+  it("falls back to an order summary if everything was approval talk", () => {
+    const out = withApprovalLink("Click the PayPal button to approve.", {
+      paypalOrder: { id: "T2", status: "CREATED", approveUrl: "https://www.sandbox.paypal.com/checkoutnow?token=T2" },
+      refund: null,
+    });
+    expect(out.startsWith("PayPal order T2 is CREATED.")).toBe(true);
+  });
+});
