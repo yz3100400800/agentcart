@@ -41,3 +41,16 @@ describe("approval wording", () => {
     expect(APPROVE_HINT).toMatch(/click the PayPal button below \(or the link\) to approve/i);
   });
 });
+
+describe("cleanReply via withApprovalLink", () => {
+  const url = "https://www.sandbox.paypal.com/checkoutnow?token=6RK382978H537990G";
+  const raw = `✅ **Order Created!**\n\nYour order is ready for payment:\n- **Order ID:** 6RK382978H537990G\n- **Total:** $74.00\n\n**Next Step:** Please approve and complete the payment using the PayPal button at:\n${url}\n\nClick the PayPal button below (or the link) to approve.\n[Approve with PayPal](${url})`;
+  it("strips markdown, model-written links and approval text, then adds one hint", () => {
+    const out = withApprovalLink(raw, { paypalOrder: { id: "X", status: "CREATED", approveUrl: url }, refund: null });
+    expect(out).not.toMatch(/\*\*|✅|\[Approve/);
+    expect(out.split(url).length - 1).toBe(1);
+    expect(out.split(APPROVE_HINT).length - 1).toBe(1);
+    expect(out).toContain("Order ID: 6RK382978H537990G");
+    expect(out.endsWith(`Approve with PayPal: ${url}`)).toBe(true);
+  });
+});

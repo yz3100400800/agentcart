@@ -29,6 +29,7 @@ export default function PayPalCheckout({
         clientId,
         currency: "USD",
         intent: "capture",
+        locale: "en_US",
         disableFunding: "card,venmo,paylater,credit",
       }}
     >

@@ -189,13 +189,31 @@ async function maybeCreateOrder(
 
 export const APPROVE_HINT = "Click the PayPal button below (or the link) to approve.";
 
+export function cleanReply(message: string): string {
+  return message
+    .replace(/\[([^\]]+)\]\((https?:[^)]+)\)/g, "$1")
+    .replace(/https?:\/\/\S*paypal\.com\S*/gi, "")
+    .split("\n")
+    .filter((line) => !/(paypal (button|link|approval)|approve (it |the payment |the order )?(with|using|via|in) paypal|click the paypal)/i.test(line))
+    .map((line) =>
+      line
+        .replace(/\*\*|__|`/g, "")
+        .replace(/^#{1,6}\s+/, "")
+        .replace(/^\s*[*-]\s+/, "• ")
+        .replace(/(^|\s)\*(\S[^*]*?)\*(?=\s|$|[.,!?])/g, "$1$2")
+        .replace(/[\u2705\u274C\u{1F300}-\u{1FAFF}]\uFE0F?\s*/gu, "")
+        .replace(/[ \t]+$/, ""),
+    )
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 export function withApprovalLink(message: string, state: Pick<AgentState, "paypalOrder" | "refund">): string {
+  const cleaned = cleanReply(message);
   const url = state.paypalOrder?.approveUrl;
-  if (!url || state.refund) return message;
-  const hint = message.includes(APPROVE_HINT) ? "" : APPROVE_HINT;
-  const link = message.includes(url) ? "" : `Approve with PayPal: ${url}`;
-  const tail = [hint, link].filter(Boolean).join("\n");
-  return tail ? `${message}\n\n${tail}` : message;
+  if (!url || state.refund) return cleaned;
+  return `${cleaned}\n\n${APPROVE_HINT}\nApprove with PayPal: ${url}`;
 }
 
 function fallbackMessage(state: AgentState, modelText: string | null): string {
@@ -239,6 +257,7 @@ export function buildSystemPrompt(input: AgentInput, state: AgentState): string 
     "Use tools. Never invent SKUs or prices. The server prices every cart from the catalog.",
     "Shopping: search_catalog if you need options, then plan_cart or propose_cart. If policy passes, create_paypal_order. If policy fails, request_human_approval and explain the violations. Do not claim the payment is captured.",
     "A week of office coffee means days=5. Keep the stated budget.",
+    "Reply in plain text, two to four short sentences, no markdown, no emoji. Never include URLs or PayPal links and never tell the user how to approve; the app adds the PayPal button and link itself.",
     "Refunds: list_known_orders if needed, get_paypal_order, then refund_capture. Use itemQuery for a partial refund such as cups. Do not create a new order on a refund turn.",
     `Categories: ${listCategories().join(", ")}.`,
     `Policy: budget cap ${formatUsd(policy.budgetCapCents)}, per-item max ${formatUsd(policy.perItemMaxCents)}, blocked categories: ${policy.blockedCategories.join(", ") || "none"}.`,
