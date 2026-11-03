@@ -26,7 +26,9 @@ describe("withApprovalLink", () => {
   });
   it("does not duplicate the link or add it without an order", () => {
     const text = `Pay here ${order.approveUrl}`;
-    expect(withApprovalLink(text, { paypalOrder: order, refund: null })).toBe(text);
+    const out = withApprovalLink(text, { paypalOrder: order, refund: null });
+    expect(out.split(order.approveUrl).length - 1).toBe(1);
+    expect(out).toContain("Click the PayPal button below (or the link) to approve.");
     expect(withApprovalLink("Hi", { paypalOrder: null, refund: null })).toBe("Hi");
   });
 });

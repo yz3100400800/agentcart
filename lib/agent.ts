@@ -191,8 +191,11 @@ export const APPROVE_HINT = "Click the PayPal button below (or the link) to appr
 
 export function withApprovalLink(message: string, state: Pick<AgentState, "paypalOrder" | "refund">): string {
   const url = state.paypalOrder?.approveUrl;
-  if (!url || state.refund || message.includes(url)) return message;
-  return `${message}\n\n${APPROVE_HINT}\nApprove with PayPal: ${url}`;
+  if (!url || state.refund) return message;
+  const hint = message.includes(APPROVE_HINT) ? "" : APPROVE_HINT;
+  const link = message.includes(url) ? "" : `Approve with PayPal: ${url}`;
+  const tail = [hint, link].filter(Boolean).join("\n");
+  return tail ? `${message}\n\n${tail}` : message;
 }
 
 function fallbackMessage(state: AgentState, modelText: string | null): string {
