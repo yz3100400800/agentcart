@@ -62,6 +62,7 @@ export default function OrderDetail() {
 
   const capture = live?.captures.find((entry) => entry.status === "COMPLETED" || entry.status === "PARTIALLY_REFUNDED");
 
+  const headerStatus = live ? displayStatus(live) : null;
   const canCapture = live?.status === "APPROVED" && live.captures.length === 0;
 
   async function capturePayment() {
@@ -151,7 +152,10 @@ export default function OrderDetail() {
         ) : null}
         {live ? (
           <>
-            <p className={live.status === "COMPLETED" ? "ok-banner" : "info-banner"}>PayPal status: {live.status}</p>
+            <p className={headerStatus === "COMPLETED" ? "ok-banner" : "info-banner"}>
+              PayPal status: {headerStatus}
+              {headerStatus !== live.status ? <small className="muted"> (order {live.status})</small> : null}
+            </p>
             <p>Amount {live.amountCents === null ? "unknown" : formatUsd(live.amountCents)}</p>
             {live.payerEmail ? <p className="muted">Payer {live.payerEmail}</p> : null}
             <ul className="lines">
@@ -182,7 +186,7 @@ export default function OrderDetail() {
         {webhook ? (
           <p className="info-banner">Last webhook: {webhook.status} via {webhook.eventType} at {new Date(webhook.updatedAt).toLocaleString()}.</p>
         ) : (
-          <p className="muted">No webhook update for this order on this server instance.</p>
+          <p className="muted">Webhook: not configured (demo)</p>
         )}
       </section>
       <div className="side">
@@ -254,4 +258,11 @@ export default function OrderDetail() {
       </div>
     </div>
   );
+}
+
+export function displayStatus(order: { status: string; captures: { status: string }[] }): string {
+  const statuses = order.captures.map((entry) => entry.status);
+  if (statuses.length > 0 && statuses.every((status) => status === "REFUNDED")) return "REFUNDED";
+  if (statuses.some((status) => status === "PARTIALLY_REFUNDED" || status === "REFUNDED")) return "PARTIALLY_REFUNDED";
+  return order.status;
 }
