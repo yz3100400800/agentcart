@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import TraceTimeline from "@/components/trace-timeline";
-import { addRefund, findOrder } from "@/lib/browser-store";
+import { addRefund, findOrder, upsertOrder } from "@/lib/browser-store";
 import { dollarsToCents, formatUsd } from "@/lib/money";
 import type { SavedOrder } from "@/lib/types";
 
@@ -30,9 +30,11 @@ export default function OrderDetail() {
   const [amount, setAmount] = useState("");
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [capturing, setCapturing] = useState(false);
 
-  async function refresh() {
-    setLoading(true);
+  async function refresh(quiet = false) {
+    if (!quiet) setLoading(true);
     setSaved(findOrder(orderId));
     try {
       const response = await fetch(`/api/paypal/orders/${encodeURIComponent(orderId)}`);
@@ -60,11 +62,43 @@ export default function OrderDetail() {
 
   const capture = live?.captures.find((entry) => entry.status === "COMPLETED" || entry.status === "PARTIALLY_REFUNDED");
 
+  const canCapture = live?.status === "APPROVED" && live.captures.length === 0;
+
+  async function capturePayment() {
+    setCapturing(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const response = await fetch("/api/paypal/capture", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId }),
+      });
+      const body = (await response.json()) as { error?: string; order?: LiveOrder; captureId?: string | null; captureStatus?: string | null };
+      if (!response.ok) {
+        setError(body.error || "Capture failed.");
+        return;
+      }
+      if (body.order) setLive(body.order);
+      if (saved && body.captureId) {
+        upsertOrder({ ...saved, captureId: body.captureId, status: body.order?.status ?? "COMPLETED" });
+        setSaved(findOrder(orderId));
+      }
+      setSuccess(`Payment captured${body.captureId ? ` (${body.captureId}, ${body.captureStatus ?? "done"})` : ""}.`);
+      await refresh(true);
+    } catch {
+      setError("Capture did not finish.");
+    } finally {
+      setCapturing(false);
+    }
+  }
+
   async function refund(amountCents?: number, noteOverride?: string) {
     if (!capture) return;
     const payerNote = noteOverride ?? note;
     setBusy(true);
     setError(null);
+    setSuccess(null);
     try {
       const response = await fetch("/api/paypal/refund", {
         method: "POST",
@@ -88,7 +122,10 @@ export default function OrderDetail() {
         at: new Date().toISOString(),
       });
       setSaved(findOrder(orderId));
-      await refresh();
+      setSuccess(
+        `Refund ${body.refund.id} is ${body.refund.status}${body.refund.amountCents === null ? "" : ` for ${formatUsd(body.refund.amountCents)}`}.`,
+      );
+      await refresh(true);
     } catch {
       setError("Refund did not finish.");
     } finally {
@@ -103,7 +140,15 @@ export default function OrderDetail() {
         <h1>Order</h1>
         <p className="capture-id">{orderId}</p>
         {loading ? <p className="muted">Asking PayPal…</p> : null}
-        {error ? <p className="error-banner">{error}</p> : null}
+        {error ? <p className="error-banner" role="alert">{error}</p> : null}
+        {success ? <p className="ok-banner" role="status">{success}</p> : null}
+        {canCapture ? (
+          <div className="actions">
+            <button type="button" disabled={capturing} onClick={() => void capturePayment()}>
+              {capturing ? "Capturing…" : "Capture payment"}
+            </button>
+          </div>
+        ) : null}
         {live ? (
           <>
             <p className={live.status === "COMPLETED" ? "ok-banner" : "info-banner"}>PayPal status: {live.status}</p>
@@ -119,7 +164,7 @@ export default function OrderDetail() {
               ))}
             </ul>
             <h3>Captures</h3>
-            {live.captures.length === 0 ? <p className="muted">No capture yet. Approve the order from the desk.</p> : null}
+            {live.captures.length === 0 ? <p className="muted">{canCapture ? "The buyer approved. Capture the payment above." : "No capture yet. Approve the order from the desk."}</p> : null}
             <ul className="notes">
               {live.captures.map((entry) => (
                 <li key={entry.id}>{entry.id} · {entry.status} · {formatUsd(entry.amountCents)}</li>
@@ -157,7 +202,7 @@ export default function OrderDetail() {
               </div>
               <div className="actions">
                 <button type="button" className="danger" disabled={busy} onClick={() => refund()}>
-                  Refund full capture
+                  {busy ? "Refunding…" : "Refund full capture"}
                 </button>
                 <button
                   type="button"
@@ -172,7 +217,7 @@ export default function OrderDetail() {
                     void refund(cents);
                   }}
                 >
-                  Refund custom amount
+                  {busy ? "Refunding…" : "Refund custom amount"}
                 </button>
               </div>
               {saved?.cart.lines.map((line) => (

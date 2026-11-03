@@ -187,10 +187,12 @@ async function maybeCreateOrder(
   if (result.code === "POLICY") state.needsApproval = true;
 }
 
+export const APPROVE_HINT = "Click the PayPal button below (or the link) to approve.";
+
 export function withApprovalLink(message: string, state: Pick<AgentState, "paypalOrder" | "refund">): string {
   const url = state.paypalOrder?.approveUrl;
   if (!url || state.refund || message.includes(url)) return message;
-  return `${message}\n\n[Approve with PayPal](${url})`;
+  return `${message}\n\n${APPROVE_HINT}\nApprove with PayPal: ${url}`;
 }
 
 function fallbackMessage(state: AgentState, modelText: string | null): string {
@@ -201,7 +203,7 @@ function fallbackMessage(state: AgentState, modelText: string | null): string {
     return `Refund ${state.refund.id} is ${state.refund.status} for ${amount}.`;
   }
   if (state.paypalOrder && state.cart) {
-    return `PayPal order ${state.paypalOrder.id} is ${state.paypalOrder.status} for ${formatUsd(state.cart.totalCents)}. Approve it with the PayPal button. The payment is not captured until you do.`;
+    return `PayPal order ${state.paypalOrder.id} is ${state.paypalOrder.status} for ${formatUsd(state.cart.totalCents)}. The payment is not captured until you approve it.`;
   }
   if (state.needsApproval && state.evaluation) {
     return `This cart needs approval before I create a PayPal order. ${state.evaluation.violations.map((violation) => violation.message).join(" ")}`;

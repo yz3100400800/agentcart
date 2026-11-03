@@ -1,5 +1,5 @@
 import { DEFAULT_POLICY } from "@/lib/policy";
-import type { KnownOrder, Policy, SavedOrder, SavedRefund } from "@/lib/types";
+import type { KnownOrder, Policy, PolicyEvaluation, PricedCart, SavedOrder, SavedRefund, TraceStep } from "@/lib/types";
 
 const KEY = "agentcart.v1";
 
@@ -104,4 +104,65 @@ function isOrder(value: unknown): value is SavedOrder {
   if (!value || typeof value !== "object") return false;
   const order = value as SavedOrder;
   return typeof order.orderId === "string" && Boolean(order.cart) && Array.isArray(order.cart.lines);
+}
+
+const DESK_KEY = "agentcart.desk.v1";
+
+export type DeskState = {
+  messages: { id: string; role: "user" | "assistant"; content: string }[];
+  trace: TraceStep[];
+  cart: PricedCart | null;
+  policyEval: PolicyEvaluation | null;
+  needsApproval: boolean;
+  order: { id: string; status: string; approveUrl?: string } | null;
+  captureId: string | null;
+  requestBudgetCents?: number;
+  requestText: string;
+};
+
+export function emptyDesk(): DeskState {
+  return { messages: [], trace: [], cart: null, policyEval: null, needsApproval: false, order: null, captureId: null, requestText: "" };
+}
+
+export function loadDesk(storage: Pick<Storage, "getItem"> | null = typeof window === "undefined" ? null : window.localStorage): DeskState {
+  if (!storage) return emptyDesk();
+  try {
+    const raw = storage.getItem(DESK_KEY);
+    if (!raw) return emptyDesk();
+    const parsed = JSON.parse(raw) as Partial<DeskState>;
+    const base = emptyDesk();
+    return {
+      messages: Array.isArray(parsed.messages)
+        ? parsed.messages.filter((m) => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
+        : base.messages,
+      trace: Array.isArray(parsed.trace) ? parsed.trace : base.trace,
+      cart: parsed.cart && Array.isArray(parsed.cart.lines) ? parsed.cart : null,
+      policyEval: parsed.policyEval ?? null,
+      needsApproval: Boolean(parsed.needsApproval),
+      order: parsed.order && typeof parsed.order.id === "string" ? parsed.order : null,
+      captureId: typeof parsed.captureId === "string" ? parsed.captureId : null,
+      requestBudgetCents: Number.isInteger(parsed.requestBudgetCents) ? parsed.requestBudgetCents : undefined,
+      requestText: typeof parsed.requestText === "string" ? parsed.requestText : "",
+    };
+  } catch {
+    return emptyDesk();
+  }
+}
+
+export function saveDesk(desk: DeskState, storage: Pick<Storage, "setItem"> | null = typeof window === "undefined" ? null : window.localStorage): void {
+  if (!storage) return;
+  const trimmed: DeskState = {
+    ...desk,
+    messages: desk.messages.slice(-40).map((m) => ({ ...m, content: m.content.slice(0, 4000) })),
+    trace: desk.trace.slice(-80).map((step) => ({ ...step, detail: step.detail.slice(0, 1500) })),
+  };
+  try {
+    storage.setItem(DESK_KEY, JSON.stringify(trimmed));
+  } catch {
+    // Storage full or blocked. The desk still works for this tab.
+  }
+}
+
+export function clearDesk(): void {
+  if (typeof window !== "undefined") window.localStorage.removeItem(DESK_KEY);
 }

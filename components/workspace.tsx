@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import PayPalCheckout from "@/components/paypal-checkout";
 import PolicyDrawer from "@/components/policy-drawer";
 import TraceTimeline from "@/components/trace-timeline";
-import { knownOrdersForAgent, savePolicy, upsertOrder, addRefund, loadPersisted } from "@/lib/browser-store";
+import { knownOrdersForAgent, savePolicy, upsertOrder, addRefund, loadPersisted, loadDesk, saveDesk, clearDesk } from "@/lib/browser-store";
 import { formatUsd } from "@/lib/money";
 import { DEFAULT_POLICY } from "@/lib/policy";
 import type {
@@ -75,15 +75,46 @@ export default function Workspace({
   const [requestText, setRequestText] = useState("");
   const [catalogQuery, setCatalogQuery] = useState("");
   const transcriptRef = useRef<HTMLDivElement>(null);
+  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
     const saved = loadPersisted();
     setPolicy(saved.policy);
+    const desk = loadDesk();
+    setMessages(desk.messages);
+    setTrace(desk.trace);
+    setCart(desk.cart);
+    setPolicyEval(desk.policyEval);
+    setNeedsApproval(desk.needsApproval);
+    setOrder(desk.order);
+    setCaptureId(desk.captureId);
+    setRequestBudgetCents(desk.requestBudgetCents);
+    setRequestText(desk.requestText);
+    setHydrated(true);
     fetch("/api/config")
       .then((response) => response.json())
       .then((body: PublicConfig) => setConfig(body))
       .catch(() => undefined);
   }, []);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    saveDesk({ messages, trace, cart, policyEval, needsApproval, order, captureId, requestBudgetCents, requestText });
+  }, [hydrated, messages, trace, cart, policyEval, needsApproval, order, captureId, requestBudgetCents, requestText]);
+
+  function resetDesk() {
+    clearDesk();
+    setMessages([]);
+    setTrace([]);
+    setCart(null);
+    setPolicyEval(null);
+    setNeedsApproval(false);
+    setOrder(null);
+    setCaptureId(null);
+    setRequestBudgetCents(undefined);
+    setRequestText("");
+    setError(null);
+  }
 
   useEffect(() => {
     transcriptRef.current?.scrollTo({ top: transcriptRef.current.scrollHeight });
@@ -286,6 +317,11 @@ export default function Workspace({
               {example}
             </button>
           ))}
+          {messages.length > 0 ? (
+            <button type="button" className="prompt" onClick={resetDesk} disabled={busy}>
+              New request (clear desk)
+            </button>
+          ) : null}
         </div>
         <div className="transcript" ref={transcriptRef} aria-live="polite">
           {messages.length === 0 ? (
