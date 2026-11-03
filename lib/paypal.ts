@@ -113,7 +113,6 @@ export function buildOrderBody(input: CreatePayPalOrderInput): Record<string, un
     ],
     application_context: {
       brand_name: "AgentCart",
-      locale: "en-US",
       shipping_preference: "NO_SHIPPING",
       user_action: "PAY_NOW",
     },
